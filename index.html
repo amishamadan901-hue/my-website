@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Gene Expression Tool</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix"></script>
+
+<style>
+body{
+    font-family:Arial;
+    background:#f4f7fb;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+}
+
+h2{
+    margin-top:20px;
+}
+
+.container{
+    width:800px;
+    text-align:center;
+}
+
+table{
+    margin:auto;
+    border-collapse:collapse;
+    margin-bottom:20px;
+}
+
+td,th{
+    padding:8px;
+    border:1px solid #ccc;
+}
+
+input{
+    width:70px;
+    padding:5px;
+}
+
+button{
+    padding:10px 20px;
+    background:#2c7a7b;
+    color:white;
+    border:none;
+    cursor:pointer;
+    border-radius:5px;
+}
+
+.chart{
+    width:600px;
+    margin:20px auto;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h2>Gene Expression Analysis</h2>
+
+<table>
+<tr>
+<th>Gene</th>
+<th>Control</th>
+<th>Treatment</th>
+</tr>
+<tbody id="tableBody"></tbody>
+</table>
+
+<button onclick="analyze()">Analyze</button>
+
+<div class="chart"><canvas id="bar"></canvas></div>
+<div class="chart"><canvas id="volcano"></canvas></div>
+<div class="chart"><canvas id="heatmap"></canvas></div>
+
+</div>
+
+<script>
+
+// genes
+const genes = [
+"TP53","MYC","BRCA1","VEGFA","CDK2",
+"EGFR","PTEN","AKT1","KRAS","MTOR",
+"IL6","TNF","GAPDH","ACTB","BCL2"
+];
+
+// fill table with RANDOM realistic values
+const table = document.getElementById("tableBody");
+
+genes.forEach(g=>{
+let control = Math.floor(Math.random()*100+20);
+let treatment = Math.floor(Math.random()*100+20);
+
+table.innerHTML += `
+<tr>
+<td>${g}</td>
+<td><input type="number" value="${control}"></td>
+<td><input type="number" value="${treatment}"></td>
+</tr>`;
+});
+
+let barChart, volcanoChart, heatChart;
+
+function analyze(){
+
+let rows = document.querySelectorAll("#tableBody tr");
+
+let names=[], fc=[], volcano=[], heatData=[];
+
+rows.forEach((r,i)=>{
+let name = r.cells[0].innerText;
+let c = parseFloat(r.cells[1].children[0].value);
+let t = parseFloat(r.cells[2].children[0].value);
+
+let log2fc = Math.log2(t/c);
+let p = Math.exp(-Math.abs(log2fc));
+let logp = -Math.log10(p);
+
+names.push(name);
+fc.push(log2fc);
+volcano.push({x:log2fc, y:logp});
+
+heatData.push({x:0, y:i, v:c});
+heatData.push({x:1, y:i, v:t});
+});
+
+// BAR CHART
+if(barChart) barChart.destroy();
+
+barChart = new Chart(document.getElementById("bar"),{
+type:"bar",
+data:{
+labels:names,
+datasets:[{
+label:"Log2 Fold Change",
+data:fc,
+backgroundColor:fc.map(v=> v>0 ? "red" : "blue")
+}]
+},
+options:{
+plugins:{
+tooltip:{enabled:true}
+},
+scales:{
+y:{title:{display:true,text:"Log2 Fold Change"}}
+}
+}
+});
+
+// VOLCANO
+if(volcanoChart) volcanoChart.destroy();
+
+volcanoChart = new Chart(document.getElementById("volcano"),{
+type:"scatter",
+data:{
+datasets:[{
+label:"Volcano Plot",
+data:volcano,
+backgroundColor:fc.map(v=> v>0 ? "red" : "blue")
+}]
+},
+options:{
+plugins:{
+tooltip:{enabled:true}
+},
+scales:{
+x:{title:{display:true,text:"Log2 Fold Change"}},
+y:{title:{display:true,text:"-log10(p-value)"}}
+}
+}
+});
+
+// HEATMAP
+if(heatChart) heatChart.destroy();
+
+heatChart = new Chart(document.getElementById("heatmap"),{
+type:"matrix",
+data:{
+datasets:[{
+data:heatData,
+width:40,
+height:25,
+backgroundColor(ctx){
+let v = ctx.raw.v;
+
+// normalize value
+let norm = v / 150;
+
+// blue → white → red
+let r = Math.floor(255 * norm);
+let b = Math.floor(255 * (1 - norm));
+
+return `rgb(${r}, 100, ${b})`;
+}
+}]
+},
+options:{
+plugins:{
+legend:{display:false},
+tooltip:{
+callbacks:{
+label:(ctx)=>{
+return `Value: ${ctx.raw.v}`;
+}
+}
+}
+},
+scales:{
+x:{
+title:{display:true,text:"Control vs Treatment"},
+ticks:{
+callback:(v)=> v==0 ? "Control" : "Treatment"
+}
+},
+y:{
+title:{display:true,text:"Genes"},
+ticks:{
+callback:(v)=>names[v]
+}
+}
+}
+}
+});
+}
+</script>
+
+</body>
+</html>
